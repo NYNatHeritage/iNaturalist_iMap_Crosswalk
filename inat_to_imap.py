@@ -40,7 +40,8 @@ with open('taxa_cross-walk.json','r', encoding='utf-8') as taxa_file:
 #    inat_records = json.load(thefile)
 
 # sample iNat API call for all verifiable SLF records in NY
-inat_api_call = 'https://api.inaturalist.org/v1/observations?place_id=48&taxon_id=324726&verifiable=true&order=asc&order_by=created_at&id_above=56480848'
+# this should be updated depending on query criteria and taxa cross-walk and to reduce duplicates
+inat_api_call = 'https://api.inaturalist.org/v1/observations?place_id=48&taxon_id=324726&verifiable=true&order=asc&order_by=created_at'
 # inat_api_call = "https://api.inaturalist.org/v1/observations/32173553"
 
 # get the iNat records to upload
@@ -49,6 +50,8 @@ inat_records = inat_response.json()
 
 iMapSession = requests.Session()
 # iMapSession.verify = "W:\\Projects\\iMap\\imap3_scripts\\ca-bundle.pem"
+# if running from a secure local computer, load a previously-saved session to authenticate with iMap
+# otherwise, iMap authentication would need to be handled here
 with open('/Users/nynhp/Documents/imap3_scripts/imap3_workspace/agol_to_imap3/cookie_storage.txt','rb') as thefile:
     iMapSession.cookies.update(pickle.load(thefile))
 
