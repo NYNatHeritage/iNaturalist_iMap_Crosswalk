@@ -1,12 +1,5 @@
 import requests, json, urllib.parse, pickle
 
-# # initiate a session
-# iMapSession = requests.Session()
-
-# # load a previously-saved session
-# with open('/Users/nynhp/Documents/imap3_scripts/imap3_workspace/agol_to_imap3/cookie_storage.txt','rb') as thefile:
-#     iMapSession.cookies.update(pickle.load(thefile))
-
 def upload_photo(file_name, in_file, file_format, session, imap_url):
     files = {'file': (file_name, in_file, file_format)}
 
@@ -59,7 +52,3 @@ def inat_imap_photo_handler(allowed_licenses, inat_photos, session, imap_url):
     formatted_imap_photos = imap_photo_format_handler(imap_photos)
 
     return formatted_imap_photos
-
-# test_inat_photo = [{"id":89130810,"license_code":"cc-by-nc","url":"https://static.inaturalist.org/photos/89130810/square.jpeg?1597004423","attribution":"(c) Chris Ricker, some rights reserved (CC BY-NC)","original_dimensions":{"width":1536,"height":2048},"flags":[]}]
-
-# print(inat_imap_photo_handler(test_inat_photo, iMapSession, 'https://imapdev.natureserve.org/imap/services'))
