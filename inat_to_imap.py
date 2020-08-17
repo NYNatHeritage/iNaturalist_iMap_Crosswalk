@@ -1,12 +1,37 @@
-import requests, json, urllib.parse, pickle, sys, os, math, pyproj
+import requests, json, urllib.parse, pickle, sys, os, math, pyproj, inat_photo
 from time import sleep
 from datetime import datetime, timezone
 
 inat_session = requests.Session()
 
-full_imap_url = 'https://imapdev.natureserve.org/imap/services'
+full_imap_url = 'https://imapinvasives.natureserve.org/imap/services'
 
-# taxa cross-walk
+allowed_photo_licenses = {
+    "cc0": {
+        "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+    },
+    "cc-by-nc": {
+        "license_url": "https://creativecommons.org/licenses/by-nc/4.0/"
+    },
+    "cc-by": {
+        "license_url": "https://creativecommons.org/licenses/by/4.0/"
+    }
+}
+
+disallowed_photo_licenses = [
+    "CC-BY-SA",
+    "CC-BY-ND",
+    "CC-BY-NC-SA",
+    "CC-BY-NC-ND"
+]
+
+# NY iNat Person ID
+observer = 20882
+
+# a project to tag records uploaded via this process
+taggedProjects = [{"project": { "id": 1052}}]
+
+# load taxa cross-walk
 with open('taxa_cross-walk.json','r', encoding='utf-8') as taxa_file:
    taxa_cross_walk = json.load(taxa_file)
 
@@ -15,7 +40,8 @@ with open('taxa_cross-walk.json','r', encoding='utf-8') as taxa_file:
 #    inat_records = json.load(thefile)
 
 # sample iNat API call for all verifiable SLF records in NY
-inat_api_call = 'https://api.inaturalist.org/v1/observations?place_id=48&taxon_id=324726&verifiable=true&order=desc&order_by=created_at'
+inat_api_call = 'https://api.inaturalist.org/v1/observations?place_id=48&taxon_id=324726&verifiable=true&order=asc&order_by=created_at&id_above=56480848'
+# inat_api_call = "https://api.inaturalist.org/v1/observations/32173553"
 
 # get the iNat records to upload
 inat_response = inat_session.get(inat_api_call)
@@ -23,7 +49,7 @@ inat_records = inat_response.json()
 
 iMapSession = requests.Session()
 # iMapSession.verify = "W:\\Projects\\iMap\\imap3_scripts\\ca-bundle.pem"
-with open('','rb') as thefile:
+with open('/Users/nynhp/Documents/imap3_scripts/imap3_workspace/agol_to_imap3/cookie_storage.txt','rb') as thefile:
     iMapSession.cookies.update(pickle.load(thefile))
 
 def getPresentSpeciesRecord(species_id):
@@ -195,11 +221,39 @@ for inat_record in inat_records['results']:
     # get a new present species record
     new_present_species = getPresentSpeciesRecord(taxa_cross_walk[str(inat_record["taxon"]["id"])]["ny_species_list_id"])
 
+    # initialize a list to construct the Present Species comment
+    present_species_comment = []
+
+    present_species_comment.append("iNaturalist Source: {0}".format(inat_record["uri"]))
+
+    if inat_record["description"]:
+        present_species_comment.append("\n\nOriginal Submitter Comment: {0}".format(inat_record["description"]))
+
+    present_species_comment.append("\n\nReported GPS Accuracy: {0} meters".format(str(inat_record["positional_accuracy"])))
+    present_species_comment.append("\n\niNaturalist Quality Grade upon upload to iMap: {0}".format(inat_record["quality_grade"]))
+
+    distinct_photo_licenses = []
+
+    # create a list of all distinct photo licenses used in the record
+    for photo in inat_record["photos"]:
+        if photo["license_code"] not in distinct_photo_licenses:
+            distinct_photo_licenses.append(photo["license_code"])
+
+    # loop through list of distinct licenses and insert the appropriate photo license info
+    for photo_license in distinct_photo_licenses:
+        if photo_license in allowed_photo_licenses:
+            present_species_comment.append("\n\nPhoto(s) used in this record are licensed under the Creative Commons. License: {0}".format(allowed_photo_licenses[photo["license_code"]]["license_url"]))
+        elif photo_license is None or photo_license in disallowed_photo_licenses:
+            present_species_comment.append("\n\nSee source record for photo (not uploaded to iMap due to licensing restrictions)")
+
+    # convert the comment list into a string
+    final_present_species_comment = "".join(present_species_comment)
+
     presence = {
         "presenceId":None,
         "areaOfInterest":None,
         "areaOfInterestId":None,
-        "observer":{"id":17047},
+        "observer":{"id": observer},
         "createdBy":{"id":16500,"name":"NY iMapInvasives Batch Record Creator Tool - 16500"},
         "observationDate":inat_record_date_timestamp,
         "timeLengthSearched":None,
@@ -221,7 +275,7 @@ for inat_record in inat_records['results']:
                 "statusChangedBy":None,
                 "confirmedInd":False,
                 "confirmingComments":None,
-                "comments":("Record automatically crosswalked from iNaturalist.\nSource: " + inat_record["uri"] + "\nReported GPS Accuracy: " + str(inat_record["positional_accuracy"]) + " meters" + "\niNat Quality Grade upon upload to iMap: " + inat_record["quality_grade"]),
+                "comments": final_present_species_comment,
                 "adminComments": None,
                 "statusChangedDate":None,
                 "sourceUniqueId": inat_record["id"],
@@ -237,7 +291,7 @@ for inat_record in inat_records['results']:
                 "modifiedDate":None,
                 "modifiedBy":None,
                 "uuid":None,
-                "photos":[],
+                "photos": inat_photo.inat_imap_photo_handler(allowed_photo_licenses, inat_record["photos"], iMapSession, full_imap_url),
                 "underTreatmentInd":False,
                 "confirmer":True,
                 "lazy":False,
@@ -262,7 +316,7 @@ for inat_record in inat_records['results']:
                 "dbioagentSpeciesId":None,
                 "jspeciesIdMethods":[],
                 "dremovedReasonId":None,
-                "taggedProjects":[]
+                "taggedProjects":taggedProjects
             }],
             "lazy":False,
             "deleted":False,
